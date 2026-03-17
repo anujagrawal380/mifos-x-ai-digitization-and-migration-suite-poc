@@ -1,0 +1,38 @@
+services:
+
+  mariadb:
+    image: mariadb:10.10
+    command: --skip-ssl --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 15s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  fineract:
+    image: apache/fineract:latest
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      FINERACT_NODE_ID: 1
+      FINERACT_HIKARI_DRIVER_SOURCE_CLASS_NAME: org.mariadb.jdbc.Driver
+      FINERACT_HIKARI_JDBC_URL: "jdbc:mariadb://mariadb:3306/fineract_tenants?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      FINERACT_HIKARI_USERNAME: root
+      FINERACT_HIKARI_PASSWORD: mysql
+      FINERACT_DEFAULT_TENANTDB_HOSTNAME: mariadb
+      FINERACT_DEFAULT_TENANTDB_PORT: 3306
+      FINERACT_DEFAULT_TENANTDB_UID: root
+      FINERACT_DEFAULT_TENANTDB_PWD: mysql
+      FINERACT_DEFAULT_TENANTDB_CONN_PARAMS: ""
+    ports:
+      - "8443:8443"
