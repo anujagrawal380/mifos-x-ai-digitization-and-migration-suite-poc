@@ -42,7 +42,7 @@ if "audit_log" not in st.session_state or st.session_state.audit_log is None:
 # ---------------------------------------------------------------------------
 
 @st.cache_resource
-def get_fineract_client():
+def get_fineract_client(base_url: str = "", username: str = "", password: str = ""):
     from fineract import FineractClient
     return FineractClient()
 
@@ -116,7 +116,7 @@ with st.sidebar:
 
     fineract_ok = False
     if st.button("Test Connection", use_container_width=True):
-        fc = get_fineract_client()
+        fc = get_fineract_client(os.environ.get("FINERACT_BASE_URL",""), os.environ.get("FINERACT_USERNAME",""), os.environ.get("FINERACT_PASSWORD",""))
         fineract_ok = fc.health_check()
         if fineract_ok:
             st.success("Connected")
@@ -230,7 +230,7 @@ if page == "📄 Paper Digitizer":
             uncertain = meta.get("uncertainFields", [])
 
             # Duplicate detection (skip gracefully if Fineract offline)
-            fc = get_fineract_client()
+            fc = get_fineract_client(os.environ.get("FINERACT_BASE_URL",""), os.environ.get("FINERACT_USERNAME",""), os.environ.get("FINERACT_PASSWORD",""))
             name_query = f"{client_data.get('firstname', '')} {client_data.get('lastname', '')}".strip()
             if name_query:
                 try:
