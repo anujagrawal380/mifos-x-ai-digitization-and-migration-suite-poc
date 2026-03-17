@@ -229,16 +229,19 @@ if page == "📄 Paper Digitizer":
             meta = extracted.get("meta", {})
             uncertain = meta.get("uncertainFields", [])
 
-            # Duplicate detection
+            # Duplicate detection (skip gracefully if Fineract offline)
             fc = get_fineract_client()
             name_query = f"{client_data.get('firstname', '')} {client_data.get('lastname', '')}".strip()
             if name_query:
-                dup_result = fc.search_clients(name_query)
-                if dup_result["success"] and dup_result["data"]:
-                    st.warning(f"Possible duplicate: **{len(dup_result['data'])}** existing client(s) "
-                               f"match '{name_query}'. Review before submitting.")
-                    with st.expander("View potential duplicates"):
-                        st.json(dup_result["data"])
+                try:
+                    dup_result = fc.search_clients(name_query)
+                    if dup_result["success"] and dup_result["data"]:
+                        st.warning(f"Possible duplicate: **{len(dup_result['data'])}** existing client(s) "
+                                   f"match '{name_query}'. Review before submitting.")
+                        with st.expander("View potential duplicates"):
+                            st.json(dup_result["data"])
+                except Exception:
+                    pass  # Fineract offline — skip duplicate check silently
 
             cols = st.columns(3)
             cols[0].metric("Confidence", f"{int(meta.get('overallConfidence', 0) * 100)}%")
@@ -286,7 +289,10 @@ if page == "📄 Paper Digitizer":
             b1, b2, b3 = st.columns([1, 1, 2])
 
             with b1:
-                if st.button("Submit to Fineract", type="primary", use_container_width=True):
+                fineract_live = bool(st.session_state.fineract_offices)
+                submit_label = "Submit to Fineract" if fineract_live else "Submit to Fineract (connect first)"
+                if st.button(submit_label, type="primary", use_container_width=True,
+                             disabled=not fineract_live):
                     from fineract import FineractClient, map_extracted_to_fineract
                     edited = {
                         "client": {
@@ -457,7 +463,8 @@ elif page == "📊 Report Migrator":
         st.divider()
         b1, b2 = st.columns([1, 3])
         with b1:
-            if st.button("Register in Fineract", type="primary"):
+            fineract_live = bool(st.session_state.fineract_offices)
+            if st.button("Register in Fineract", type="primary", disabled=not fineract_live):
                 from report_template import build_fineract_report_payload
                 from fineract import FineractClient
                 payload = build_fineract_report_payload(analysis)
@@ -609,7 +616,10 @@ elif page == "🔄 Data Migration":
             with col_opts[1]:
                 batch_size = st.number_input("Batch size", min_value=1, max_value=50, value=5)
 
-            if st.button("Start Import", type="primary"):
+            fineract_live = bool(st.session_state.fineract_offices)
+            if not fineract_live and not dry_run:
+                st.info("Connect to Fineract first for live import. Enable dry run to preview without connecting.")
+            if st.button("Start Import", type="primary", disabled=not dry_run and not fineract_live):
                 from migration import build_client_payloads
                 from fineract import FineractClient
 
