@@ -11,9 +11,6 @@ build/
 venv/
 env/
 
-# Generated sample files
-sample_forms/
-
 # OS
 .DS_Store
 Thumbs.db
