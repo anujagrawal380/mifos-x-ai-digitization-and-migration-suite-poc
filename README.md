@@ -1,6 +1,8 @@
-# Mifos X - AI Digitization & Migration Suite
+# Mifos X — AI Digitization & Migration Suite
 
 AI-powered toolkit for financial institutions adopting or migrating to Mifos X.
+
+**Live demo:** [mifos-ai-suite.streamlit.app](https://mifos-x-ai-digitization-and-migration-suite-poc.streamlit.app)
 
 ---
 
@@ -27,7 +29,7 @@ Converts scanned or photographed paper forms into live records in Mifos X.
          │
          ▼
    Image Preprocessing          ← ocr.py
-   (deskew, denoise, threshold)
+   (deskew, denoise, adaptive threshold)
          │
          ▼
    Tesseract OCR                ← ocr.py
@@ -35,7 +37,7 @@ Converts scanned or photographed paper forms into live records in Mifos X.
          │
          ▼
    Vision LLM                   ← llm.py
-   (Gemini Flash or Ollama)
+   (Groq llama-4-scout, Gemini 2.0 Flash, or Ollama)
    Sees both the image AND OCR text.
    Corrects OCR errors, handles handwriting.
    Outputs structured JSON:
@@ -45,7 +47,7 @@ Converts scanned or photographed paper forms into live records in Mifos X.
          │
          ▼
    Human Verification UI        ← app.py
-   Uncertain fields highlighted.
+   Uncertain fields highlighted in orange.
    Branch and loan product populated
    from live Fineract API.
    Duplicate client check runs automatically.
@@ -89,11 +91,12 @@ a Mifos X compatible report definition that can be registered with one click.
    Maps analysis → Fineract POST /reports schema.
    Generates SQL using Fineract table names
    (m_client, m_loan, m_office, etc.)
+   Maps filter types to Fineract parameter IDs.
          │
          ▼
    Review UI                    ← app.py
    Shows: detected columns, filter params,
-   generated SQL (editable), side-by-side preview.
+   generated SQL, full JSON payload preview.
          │
          ▼
    Apache Fineract REST API     ← fineract.py
@@ -164,6 +167,8 @@ then imports all records in bulk with a dry-run option.
 
 ## Setup
 
+### Local development
+
 ```bash
 # 1. System dependencies
 brew install tesseract poppler        # macOS
@@ -174,29 +179,30 @@ pip install -r requirements.txt
 
 # 3. Configure
 cp .env.example .env
-# Edit .env — set GEMINI_API_KEY (free at https://aistudio.google.com/app/apikey)
+# Edit .env — add GROQ_API_KEY (free at https://console.groq.com)
+# OR set LLM_BACKEND=gemini and add GEMINI_API_KEY
 # OR set LLM_BACKEND=ollama and run: ollama pull llama3.2-vision
 
-# 4. Generate sample demo data
-python generate_sample_form.py
-python convert_samples.py
-
-# 5. Start Fineract (optional — all AI features work offline)
-docker run -p 8443:8443 apache/fineract
+# 4. Start Fineract (optional — all AI features work without it)
 docker compose up -d
 
-# 6. Run the app
+# 5. Run the app
 streamlit run app.py
 ```
+
+### Connect your own Fineract instance
+
+In the app sidebar, set the **Base URL**, **User**, and **Password**, then click **Test Connection**. The app works fully offline without Fineract — Submit/Register buttons are disabled until connected.
 
 ---
 
 ## LLM Backends
 
-| Backend | Cost | How to enable |
-|---------|------|---------------|
-| Gemini 1.5 Flash | Free (15 req/min, 1M tokens/day) | Set `GEMINI_API_KEY` in `.env` |
-| Ollama llama3.2-vision | Free, fully local, no internet | `ollama pull llama3.2-vision` |
+| Backend | Cost | Vision | How to enable |
+|---------|------|--------|---------------|
+| **Groq** (default) | Free — 30 req/min, 14,400/day | ✅ llama-4-scout-17b | `GROQ_API_KEY` in `.env` — get free key at [console.groq.com](https://console.groq.com) |
+| Gemini 2.0 Flash | Free tier (new project required) | ✅ | `GEMINI_API_KEY` in `.env` — [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| Ollama | Free, fully local, offline | ✅ llama3.2-vision | `ollama pull llama3.2-vision` |
 
 ---
 
@@ -205,15 +211,45 @@ streamlit run app.py
 ```
 app.py                  — Streamlit UI (3 pages, sidebar config, audit log)
 ocr.py                  — Image preprocessing + Tesseract OCR
-llm.py                  — LLM field extraction → structured JSON
-fineract.py             — Apache Fineract REST API client
+llm.py                  — LLM field extraction (Groq / Gemini / Ollama)
+fineract.py             — Apache Fineract REST API client (9 endpoints)
 report_template.py      — Report structure analysis + definition generator
 migration.py            — CSV column mapping + transformation + bulk import
 generate_sample_form.py — Generates realistic paper form PDFs for demo
 convert_samples.py      — Converts PDF forms to PNG images
+docker-compose.yml      — Fineract + MariaDB stack
+Dockerfile.mariadb      — MariaDB image with init SQL baked in
+packages.txt            — System dependencies for Streamlit Cloud
 
 sample_forms/
 ├── typed_form_1/2/3.png         — Ghana, Nigeria, India (printed forms)
-├── handwritten_form_1/2/3.png   — Bilingual French/English (field office style)
-└── sample_report_template.png   — Legacy portfolio report for migration demo
+└── handwritten_form_1/2/3.png   — Bilingual French/English (field office style)
+```
+
+---
+
+## Deployment
+
+### Streamlit Cloud (AI features — free)
+1. Fork this repo
+2. Go to [share.streamlit.io](https://share.streamlit.io) → connect repo → main file: `app.py`
+3. Add secrets:
+```toml
+GROQ_API_KEY = "gsk_..."
+LLM_BACKEND = "groq"
+FINERACT_BASE_URL = "https://your-fineract-host:8443/fineract-provider/api/v1"
+FINERACT_USERNAME = "mifos"
+FINERACT_PASSWORD = "password"
+FINERACT_VERIFY_SSL = "false"
+```
+
+### Fineract backend (Docker)
+```bash
+docker compose up -d
+# Then create a loan product (required before submitting loans):
+curl -sk -u mifos:password \
+  -H "fineract-platform-tenantid: default" \
+  -H "Content-Type: application/json" \
+  https://localhost:8443/fineract-provider/api/v1/loanproducts \
+  -d '{"name":"General Loan","shortName":"GEN","currencyCode":"USD","digitsAfterDecimal":2,"inMultiplesOf":0,"principal":1000,"numberOfRepayments":12,"repaymentEvery":1,"repaymentFrequencyType":2,"interestRatePerPeriod":10,"interestRateFrequencyType":2,"amortizationType":1,"interestType":0,"interestCalculationPeriodType":1,"transactionProcessingStrategyCode":"mifos-standard-strategy","daysInYearType":365,"daysInMonthType":30,"isInterestRecalculationEnabled":false,"accountingRule":1,"locale":"en","dateFormat":"dd MMMM yyyy"}'
 ```
