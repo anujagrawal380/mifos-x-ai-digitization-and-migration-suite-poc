@@ -3,6 +3,7 @@
 AI-powered toolkit for financial institutions adopting or migrating to Mifos X.
 
 **Live demo:** [mifos-ai-suite.streamlit.app](https://mifos-x-ai-digitization-and-migration-suite-poc.streamlit.app)
+**Video walkthrough:** [Google Drive](https://drive.google.com/file/d/1IYR8D-hIWmBb5NHg7dUKh-5DqAuck35z/view?usp=sharing)
 
 ---
 
